@@ -4,7 +4,7 @@ A simple Web application to illustrate Standard Package Layout in Go
 ## TODO List
 - [x] Initial version
 - [x] Isolate domain-specific types
-- [] Isolate SQL-specific codes
+- [x] Isolate SQL-specific codes
 - [] Add middlewares
 - [] Refine context usage
 - [] Remove dependency form std http package

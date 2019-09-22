@@ -10,13 +10,16 @@ import (
 	"strings"
 
 	app "useritem"
+	"useritem/sqlite"
 
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
-	db *sql.DB
+	db       *sql.DB
+	userRepo app.UserRepo
+	itemRepo app.ItemRepo
 )
 
 func main() {
@@ -31,6 +34,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// setup repos
+	userRepo = &sqlite.UserRepo{DB: db}
+	itemRepo = &sqlite.ItemRepo{DB: db}
 
 	r := mux.NewRouter()
 	r.Handle("/", http.RedirectHandler("/signin", http.StatusFound))
@@ -65,7 +72,7 @@ func processSignin(w http.ResponseWriter, r *http.Request) {
 	email := r.PostFormValue("email")
 	password := r.PostFormValue("password")
 
-	// Lookup the user ID and password by their email in the DB
+	// Lookup the user by their email in the DB
 	email = strings.ToLower(email)
 	row := db.QueryRow(`select id, password from users where email=?;`, email)
 	var id int
@@ -88,15 +95,16 @@ func processSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a fake session token
-	token := fmt.Sprintf("2019%d", id)
-	_, err = db.Exec(`update users set token=? where id=?`, token, id)
+	tokenStr := fmt.Sprintf("2019%d", id)
+	token, _ := strconv.Atoi(tokenStr)
+	err = userRepo.UpdateToken(id, token)
 	if err != nil {
 		http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
 		return
 	}
 	cookie := http.Cookie{
 		Name:  "session",
-		Value: token,
+		Value: tokenStr,
 	}
 	http.SetCookie(w, &cookie)
 	http.Redirect(w, r, "/items", http.StatusFound)
@@ -119,29 +127,13 @@ func allItems(w http.ResponseWriter, r *http.Request) {
 			// Email doesn't map to a user in our DB
 			http.Redirect(w, r, "/signin", http.StatusFound)
 		default:
-			log.Println(err)
 			http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
 		}
 		return
 	}
 
 	// Query for this user's items
-	rows, err := db.Query(`select name, price from items where userid=?`, userID)
-	if err != nil {
-		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-	var items []app.Item
-	for rows.Next() {
-		var item app.Item
-		err = rows.Scan(&item.Name, &item.Price)
-		if err != nil {
-			log.Printf("Failed to scan an item: %v", err)
-			continue
-		}
-		items = append(items, item)
-	}
+	items, err := itemRepo.ByUser(userID)
 
 	// Render the items
 	tplStr := `
@@ -201,7 +193,12 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new item
-	_, err = db.Exec(`insert into items(userid, name, price) VALUES(?,?,?)`, userID, name, price)
+	item := app.Item{
+		UserID: userID,
+		Name:   name,
+		Price:  price,
+	}
+	err = itemRepo.Create(&item)
 	if err != nil {
 		http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
 		return
