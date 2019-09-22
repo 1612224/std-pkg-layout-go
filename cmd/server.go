@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	app "useritem"
+
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -20,7 +22,7 @@ var (
 func main() {
 	// setup db connection
 	var err error
-	db, err = sql.Open("sqlite3", "./database.db")
+	db, err = sql.Open("sqlite3", "../database.db")
 	if err != nil {
 		panic(err)
 	}
@@ -38,14 +40,8 @@ func main() {
 	r.HandleFunc("/items", createItem).Methods("POST")
 	r.HandleFunc("/items/new", newItem).Methods("GET")
 
+	log.Println("Listening at port 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
-}
-
-// Item is an item that an user poccesses
-type Item struct {
-	UserID int
-	Name   string
-	Price  int
 }
 
 func showSignin(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +119,7 @@ func allItems(w http.ResponseWriter, r *http.Request) {
 			// Email doesn't map to a user in our DB
 			http.Redirect(w, r, "/signin", http.StatusFound)
 		default:
+			log.Println(err)
 			http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
 		}
 		return
@@ -135,9 +132,9 @@ func allItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	var items []Item
+	var items []app.Item
 	for rows.Next() {
-		var item Item
+		var item app.Item
 		err = rows.Scan(&item.Name, &item.Price)
 		if err != nil {
 			log.Printf("Failed to scan an item: %v", err)
@@ -198,6 +195,9 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Invalid price", http.StatusBadRequest)
 		return
+	}
+	if price > 100000 {
+		http.Error(w, "Price must be at 100,000 at maximum", http.StatusBadRequest)
 	}
 
 	// Create a new item
