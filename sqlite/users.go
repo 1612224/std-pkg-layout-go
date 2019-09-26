@@ -24,8 +24,9 @@ func (repo *UserRepo) ByEmail(email string) (*app.User, error) {
 	}
 
 	// query row and get user
-	row := repo.DB.QueryRow("select id, name, token from users where email=?", user.Email)
-	err := row.Scan(&user.ID, &user.Name, &user.Token)
+	var password string
+	row := repo.DB.QueryRow("select id, name, password, token from users where email=?", user.Email)
+	err := row.Scan(&user.ID, &user.Name, &password, &user.Token)
 	if err != nil {
 		switch err {
 		case sql.ErrNoRows:
@@ -34,6 +35,7 @@ func (repo *UserRepo) ByEmail(email string) (*app.User, error) {
 			return nil, err
 		}
 	}
+	user.SetPassword(password)
 	return &user, nil
 }
 
@@ -48,8 +50,9 @@ func (repo *UserRepo) ByToken(token int) (*app.User, error) {
 	}
 
 	// query row and get user
-	row := repo.DB.QueryRow("select id, name, email from users where token=?", user.Token)
-	err := row.Scan(&user.ID, &user.Name, &user.Email)
+	var password string
+	row := repo.DB.QueryRow("select id, name, password, email from users where token=?", user.Token)
+	err := row.Scan(&user.ID, &user.Name, &password, &user.Email)
 	if err != nil {
 		switch err {
 		case sql.ErrNoRows:
@@ -58,6 +61,7 @@ func (repo *UserRepo) ByToken(token int) (*app.User, error) {
 			return nil, err
 		}
 	}
+	user.SetPassword(password)
 	return &user, nil
 }
 

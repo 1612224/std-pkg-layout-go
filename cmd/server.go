@@ -7,9 +7,9 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	app "useritem"
+	"useritem/middleware"
 	"useritem/sqlite"
 
 	"github.com/gorilla/mux"
@@ -39,13 +39,19 @@ func main() {
 	userRepo = &sqlite.UserRepo{DB: db}
 	itemRepo = &sqlite.ItemRepo{DB: db}
 
+	// use middlewares
+	authMw := middleware.Auth{UserRepo: userRepo}
+
 	r := mux.NewRouter()
 	r.Handle("/", http.RedirectHandler("/signin", http.StatusFound))
 	r.HandleFunc("/signin", showSignin).Methods("GET")
 	r.HandleFunc("/signin", processSignin).Methods("POST")
-	r.HandleFunc("/items", allItems).Methods("GET")
-	r.HandleFunc("/items", createItem).Methods("POST")
-	r.HandleFunc("/items/new", newItem).Methods("GET")
+	r.Handle("/items", middleware.ApplyFunc(allItems,
+		authMw.UserViaSession, authMw.RequireUser)).Methods("GET")
+	r.Handle("/items", middleware.ApplyFunc(createItem,
+		authMw.UserViaSession, authMw.RequireUser)).Methods("POST")
+	r.Handle("/items/new", middleware.ApplyFunc(newItem,
+		authMw.UserViaSession, authMw.RequireUser)).Methods("GET")
 
 	log.Println("Listening at port 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
@@ -73,14 +79,10 @@ func processSignin(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 
 	// Lookup the user by their email in the DB
-	email = strings.ToLower(email)
-	row := db.QueryRow(`select id, password from users where email=?;`, email)
-	var id int
-	var truePassword string
-	err := row.Scan(&id, &truePassword)
+	user, err := userRepo.ByEmail(email)
 	if err != nil {
 		switch err {
-		case sql.ErrNoRows:
+		case app.ErrNotFound:
 			// Email doesn't map to a user in our DB
 			http.Redirect(w, r, "/signin", http.StatusFound)
 		default:
@@ -89,15 +91,15 @@ func processSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if truePassword != password {
+	if !user.CheckPassword(password) {
 		http.Redirect(w, r, "/signin", http.StatusNotFound)
 		return
 	}
 
 	// Create a fake session token
-	tokenStr := fmt.Sprintf("2019%d", id)
+	tokenStr := fmt.Sprintf("2019%d", user.ID)
 	token, _ := strconv.Atoi(tokenStr)
-	err = userRepo.UpdateToken(id, token)
+	err = userRepo.UpdateToken(user.ID, token)
 	if err != nil {
 		http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
 		return
@@ -111,29 +113,10 @@ func processSignin(w http.ResponseWriter, r *http.Request) {
 }
 
 func allItems(w http.ResponseWriter, r *http.Request) {
-	// Verify the user is signed in
-	session, err := r.Cookie("session")
-	if err != nil {
-		http.Redirect(w, r, "/signin", http.StatusFound)
-		return
-	}
-	token, _ := strconv.Atoi(session.Value)
-	row := db.QueryRow(`select id from users where token=?;`, token)
-	var userID int
-	err = row.Scan(&userID)
-	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
-			// Email doesn't map to a user in our DB
-			http.Redirect(w, r, "/signin", http.StatusFound)
-		default:
-			http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
-		}
-		return
-	}
+	user := r.Context().Value("user").(*app.User)
 
 	// Query for this user's items
-	items, err := itemRepo.ByUser(userID)
+	items, err := itemRepo.ByUser(user.ID)
 
 	// Render the items
 	tplStr := `
@@ -160,44 +143,24 @@ func allItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func createItem(w http.ResponseWriter, r *http.Request) {
-	// Verify the user is signed in
-	session, err := r.Cookie("session")
-	if err != nil {
-		http.Redirect(w, r, "/signin", http.StatusFound)
-		return
-	}
-	token, _ := strconv.Atoi(session.Value)
-	row := db.QueryRow(`select id from users where token=?;`, token)
-	var userID int
-	err = row.Scan(&userID)
-	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
-			// Email doesn't map to a user in our DB
-			http.Redirect(w, r, "/signin", http.StatusFound)
-		default:
-			http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
-		}
-		return
-	}
+	user := r.Context().Value("user").(*app.User)
 
 	// Parse form values and validate data
-	name := r.PostFormValue("name")
-	price, err := strconv.Atoi(r.PostFormValue("price"))
+	item := app.Item{
+		UserID: user.ID,
+		Name:   r.PostFormValue("name"),
+	}
+	var err error
+	item.Price, err = strconv.Atoi(r.PostFormValue("price"))
 	if err != nil {
 		http.Error(w, "Invalid price", http.StatusBadRequest)
 		return
 	}
-	if price > 100000 {
+	if item.Price > 100000 {
 		http.Error(w, "Price must be at 100,000 at maximum", http.StatusBadRequest)
 	}
 
 	// Create a new item
-	item := app.Item{
-		UserID: userID,
-		Name:   name,
-		Price:  price,
-	}
 	err = itemRepo.Create(&item)
 	if err != nil {
 		http.Error(w, "Something went wrong. Try again later.", http.StatusInternalServerError)
