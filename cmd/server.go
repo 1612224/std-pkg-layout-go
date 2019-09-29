@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	app "useritem"
+	"useritem/context"
 	"useritem/middleware"
 	"useritem/sqlite"
 
@@ -113,7 +114,7 @@ func processSignin(w http.ResponseWriter, r *http.Request) {
 }
 
 func allItems(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*app.User)
+	user := context.User(r.Context())
 
 	// Query for this user's items
 	items, err := itemRepo.ByUser(user.ID)
@@ -143,7 +144,7 @@ func allItems(w http.ResponseWriter, r *http.Request) {
 }
 
 func createItem(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*app.User)
+	user := context.User(r.Context())
 
 	// Parse form values and validate data
 	item := app.Item{

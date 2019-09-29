@@ -1,12 +1,13 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	app "useritem"
+	"useritem/context"
 )
 
+// Auth is authentication middleware
 type Auth struct {
 	UserRepo app.UserRepo
 }
@@ -36,7 +37,7 @@ func (a *Auth) UserViaSession(next http.Handler) http.HandlerFunc {
 			next.ServeHTTP(w, r)
 			return
 		}
-		r = r.WithContext(context.WithValue(r.Context(), "user", user))
+		r = r.WithContext(context.WithUser(r.Context(), user))
 		next.ServeHTTP(w, r)
 	}
 }
@@ -45,15 +46,10 @@ func (a *Auth) UserViaSession(next http.Handler) http.HandlerFunc {
 // if no user found, redirect to sign in
 func (a *Auth) RequireUser(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tmp := r.Context().Value("user")
+		tmp := context.User(r.Context())
 		if tmp == nil {
 			// No user found
 			http.Redirect(w, r, "/signin", http.StatusFound)
-			return
-		}
-		if _, ok := tmp.(*app.User); !ok {
-			// Value from context is not an user
-			http.Redirect(w, r, "signin", http.StatusFound)
 			return
 		}
 		next.ServeHTTP(w, r)

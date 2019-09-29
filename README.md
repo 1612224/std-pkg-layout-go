@@ -6,7 +6,7 @@ A simple Web application to illustrate Standard Package Layout in Go
 - [x] Isolate domain-specific types
 - [x] Isolate SQL-specific codes
 - [x] Add middlewares
-- [ ] Refine context usage
+- [x] Refine context usage
 - [ ] Remove dependency form std http package
 - [ ] Isolate HTML-specific codes
 - [ ] Add JSON APIs
