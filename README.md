@@ -8,5 +8,5 @@ A simple Web application to illustrate Standard Package Layout in Go
 - [x] Add middlewares
 - [x] Refine context usage
 - [x] Remove dependency form std http package
-- [ ] Isolate HTML-specific codes
+- [x] Isolate HTML-specific codes
 - [ ] Add JSON APIs

@@ -10,16 +10,12 @@ import (
 // NewServer returns new server
 func NewServer(userRepo app.UserRepo, itemRepo app.ItemRepo) *Server {
 	server := Server{
-		authMw: &AuthMw{
+		authMw: &htmlAuthMw{
 			userRepo: userRepo,
 		},
-		userHandler: &UserHandler{
-			userRepo: userRepo,
-		},
-		itemHandler: &ItemHandler{
-			itemRepo: itemRepo,
-		},
-		router: mux.NewRouter(),
+		userHandler: htmlUserHandler(userRepo),
+		itemHandler: htmlItemHandler(itemRepo),
+		router:      mux.NewRouter(),
 	}
 	server.routes()
 	return &server
@@ -27,7 +23,7 @@ func NewServer(userRepo app.UserRepo, itemRepo app.ItemRepo) *Server {
 
 // Server represents an http server
 type Server struct {
-	authMw      *AuthMw
+	authMw      AuthMw
 	userHandler *UserHandler
 	itemHandler *ItemHandler
 	router      *mux.Router
@@ -41,10 +37,10 @@ func (s *Server) routes() {
 	s.router.Handle("/", http.RedirectHandler("/signin", http.StatusFound))
 	s.router.HandleFunc("/signin", s.userHandler.ShowSignin).Methods("GET")
 	s.router.HandleFunc("/signin", s.userHandler.ProcessSignin).Methods("POST")
-	s.router.Handle("/items", ApplyFunc(s.itemHandler.AllItems,
-		s.authMw.UserViaSession, s.authMw.RequireUser)).Methods("GET")
-	s.router.Handle("/items", ApplyFunc(s.itemHandler.CreateItem,
-		s.authMw.UserViaSession, s.authMw.RequireUser)).Methods("POST")
-	s.router.Handle("/items/new", ApplyFunc(s.itemHandler.NewItem,
-		s.authMw.UserViaSession, s.authMw.RequireUser)).Methods("GET")
+	s.router.Handle("/items", ApplyFunc(s.itemHandler.Index,
+		s.authMw.SetUser, s.authMw.RequireUser)).Methods("GET")
+	s.router.Handle("/items", ApplyFunc(s.itemHandler.Create,
+		s.authMw.SetUser, s.authMw.RequireUser)).Methods("POST")
+	s.router.Handle("/items/new", ApplyFunc(s.itemHandler.New,
+		s.authMw.SetUser, s.authMw.RequireUser)).Methods("GET")
 }
