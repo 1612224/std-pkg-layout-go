@@ -9,4 +9,4 @@ A simple Web application to illustrate Standard Package Layout in Go
 - [x] Refine context usage
 - [x] Remove dependency form std http package
 - [x] Isolate HTML-specific codes
-- [ ] Add JSON APIs
+- [x] Add JSON APIs
