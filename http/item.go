@@ -14,7 +14,7 @@ type ItemHandler struct {
 	renderNew func(http.ResponseWriter)
 
 	parseItem           func(*http.Request) (*app.Item, error)
-	renderCreateSuccess func(http.ResponseWriter, *http.Request)
+	renderCreateSuccess func(http.ResponseWriter, *http.Request, *app.Item)
 	renderCreateError   func(http.ResponseWriter, *http.Request, error)
 
 	renderIndexSuccess func(http.ResponseWriter, *http.Request, []app.Item) error
@@ -65,7 +65,7 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.renderCreateError(w, r, err)
 		return
 	}
-	h.renderCreateSuccess(w, r)
+	h.renderCreateSuccess(w, r, item)
 }
 
 // New shows create new item page

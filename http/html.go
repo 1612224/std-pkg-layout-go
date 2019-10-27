@@ -131,7 +131,7 @@ func htmlItemHandler(itemRepo app.ItemRepo) *ItemHandler {
 			item.Price, err = strconv.Atoi(r.PostFormValue("price"))
 			return &item, err
 		},
-		renderCreateSuccess: func(w http.ResponseWriter, r *http.Request) {
+		renderCreateSuccess: func(w http.ResponseWriter, r *http.Request, item *app.Item) {
 			http.Redirect(w, r, "/items", http.StatusFound)
 		},
 		renderCreateError: func(w http.ResponseWriter, r *http.Request, err error) {
